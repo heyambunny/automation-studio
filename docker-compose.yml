@@ -1,0 +1,28 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/automation_studio
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    volumes:
+      - ./uploads:/app/uploads
+      - ./recipes:/app/recipes
+      - ./assets:/app/assets
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=automation_studio
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

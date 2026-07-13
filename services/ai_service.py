@@ -8,7 +8,10 @@ REASONING_MODELS = ["deepseek-r1:8b", "deepseek-r1:14b"]
 class AIService:
     """Generates AI summaries using Ollama"""
     
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen3:latest"):
+    def __init__(self, base_url: str = None, model: str = "qwen3:latest"):
+        import os
+        if base_url is None:
+            base_url = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.base_url = base_url
         self.model = model
     

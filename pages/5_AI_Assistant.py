@@ -69,7 +69,7 @@ Return ONLY: {{"branch":"x","recipient":"x","subject":"x","cell":"A1","sheet":"S
         
         try:
             resp = requests.post(
-                "http://localhost:11434/api/generate",
+                "http://host.docker.internal:11434/api/generate",
                 json={"model": "qwen3:latest", "prompt": prompt, "stream": False,
                       "options": {"temperature": 0.1, "max_tokens": 100}},
                 timeout=60
@@ -134,7 +134,7 @@ Return ONLY: {{"branch":"x","recipient":"x","subject":"x","cell":"A1","sheet":"S
                                 
                                 with st.spinner("🤖 Generating..."):
                                     resp2 = requests.post(
-                                        "http://localhost:11434/api/generate",
+                                        "http://host.docker.internal:11434/api/generate",
                                         json={"model": "qwen3:latest", "prompt": f"Summarize this data in 3-5 bullet points:\n{summary_text[:2000]}", "stream": False,
                                               "options": {"temperature": 0.3, "max_tokens": 300}},
                                         timeout=90
