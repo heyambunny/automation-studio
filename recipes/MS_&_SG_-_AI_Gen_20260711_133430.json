@@ -1,0 +1,41 @@
+{
+  "smtp_profile": "Himanshu Banyal",
+  "sender_name": "Himanshu Banyal",
+  "send_method": "SMTP",
+  "mapping_id": 1,
+  "campaign_folder": "",
+  "group_var": "BranchName",
+  "group_var_placeholder": "{{BranchName}}",
+  "mode": "ai/ai",
+  "ai_option": "auto",
+  "user_context": "",
+  "subject": "",
+  "variables": {
+    "ReportType": "",
+    "Month": "",
+    "Year": ""
+  },
+  "body_template": "",
+  "attach_file": true,
+  "sheet_name": "Summary",
+  "start_cell": "B2",
+  "preview_data": [
+    {
+      "BranchName": "Kanpur",
+      "To": "himanshubanyal2000@gmail.com",
+      "CC": "himanshub@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    },
+    {
+      "BranchName": "Bangalore",
+      "To": "yrawat331@gmail.com",
+      "CC": "himanshub@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    }
+  ],
+  "action": "\ud83d\udce8 Send Now",
+  "saved_name": "MS & SG - AI Gen",
+  "saved_at": "2026-07-11 13:34:30"
+}
