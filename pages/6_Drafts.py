@@ -1,3 +1,4 @@
+# pages/6_Drafts.py
 import streamlit as st
 import pandas as pd
 from config import IS_WINDOWS
@@ -17,14 +18,21 @@ Available only on Windows with Outlook integration enabled.
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 if not IS_WINDOWS:
     st.warning("Outlook Drafts are only available on Windows.")
 else:
     st.caption("Drafts saved to your local Outlook.")
     
-    # Get drafts from email logs
-    drafts = db.query(EmailLog).filter(EmailLog.status == "draft_saved").order_by(EmailLog.sent_at.desc()).all()
+    if role == "admin":
+        drafts = db.query(EmailLog).filter(EmailLog.status == "draft_saved").order_by(EmailLog.sent_at.desc()).all()
+    else:
+        drafts = db.query(EmailLog).join(Execution).filter(
+            EmailLog.status == "draft_saved",
+            Execution.user_id == uid
+        ).order_by(EmailLog.sent_at.desc()).all()
     
     if drafts:
         draft_data = []
@@ -43,18 +51,18 @@ else:
         st.dataframe(df, use_container_width=True, hide_index=True)
         st.caption(f"Total drafts: {len(df)}")
         
-        # View draft detail
         selected_draft = st.selectbox("Select draft to view", df["ID"].tolist(), format_func=lambda x: f"Draft #{x}")
         if selected_draft:
             draft = db.query(EmailLog).filter_by(id=selected_draft).first()
-            st.subheader(f"📧 {draft.subject}")
-            st.write(f"**To:** {draft.recipient_to}")
-            if draft.recipient_cc:
-                st.write(f"**CC:** {draft.recipient_cc}")
-            st.write(f"**Branch:** {draft.branch_name}")
-            if draft.error_message:
-                st.text_area("Body Preview", draft.error_message, height=200, disabled=True)
+            if draft:
+                st.subheader(f"📧 {draft.subject}")
+                st.write(f"**To:** {draft.recipient_to}")
+                if draft.recipient_cc:
+                    st.write(f"**CC:** {draft.recipient_cc}")
+                st.write(f"**Branch:** {draft.branch_name}")
+                if draft.error_message:
+                    st.text_area("Body Preview", draft.error_message, height=200, disabled=True)
     else:
-        st.info("No drafts saved yet. Create a campaign and choose 'Save to Outlook Drafts'.")
+        st.info("No drafts saved yet. Go to New Campaign → Step 5 → choose 'Save to Outlook Drafts'.")
 
 db.close()

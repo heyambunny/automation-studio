@@ -9,6 +9,10 @@ from database import SessionLocal
 from models import Setting, SMTPProfile, Mapping, MappingEntry, Template, Execution, EmailLog, Schedule
 from services.audit_service import log_action
 
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+    st.stop()
+
 st.title("🚀 New Campaign")
 
 st.markdown("""
@@ -36,7 +40,7 @@ step_index = st.session_state.campaign_step - 1
 st.progress(step_index / (len(steps) - 1), text=f"Step {st.session_state.campaign_step} of {len(steps)}: {steps[step_index]}")
 st.divider()
 
-setting = db.query(Setting).first()
+setting = db.query(Setting).filter_by(user_id=st.session_state.user_id).first()
 folder_path = setting.folder_path if setting else ""
 default_sheet = setting.default_sheet_name if setting else "Summary"
 default_cell = setting.default_starting_cell if setting else "B5"
@@ -52,7 +56,10 @@ if st.session_state.campaign_step == 1:
         st.caption("💡 Outlook integration is only available on Windows.")
     
     if "SMTP" in send_method:
-        profiles = db.query(SMTPProfile).all()
+        if st.session_state.get("user_role") == "admin":
+            profiles = db.query(SMTPProfile).all()
+        else:
+            profiles = db.query(SMTPProfile).filter_by(user_id=st.session_state.get("user_id", 1)).all()
         if profiles:
             profile_names = [p.profile_name for p in profiles]
             default_profile = next((p.profile_name for p in profiles if p.is_default), profile_names[0])
@@ -148,7 +155,7 @@ elif st.session_state.campaign_step == 3:
         "Content Generation Mode",
         [
             "✍️ Static — I'll write the subject and body manually",
-            "🤖 AI Generated — Let AI create the content from data"
+            # "🤖 AI Generated — Let AI create the content from data" - Disable for future
         ],
         key="mode_selection",
         index=0 if current_mode == "static/static" else 1
@@ -497,11 +504,12 @@ elif st.session_state.campaign_step == 5:
                 from database import SessionLocal as DB
                 
                 config = st.session_state.campaign_config
+                config["user_id"] = st.session_state.get("user_id", 1)
                 action_type = config.get("action", "Send Now")
                 
                 if "Schedule" in action_type:
                     schedule = Schedule(
-                        user_id=1,
+                        user_id=st.session_state.get("user_id", 1),
                         schedule_name=f"{config.get('variables', {}).get('ReportType', 'Campaign')}",
                         campaign_config=json.dumps(config),
                         frequency=config.get("frequency", "once"),
@@ -515,7 +523,7 @@ elif st.session_state.campaign_step == 5:
                     log_action("campaign_scheduled", "schedule", schedule.id, schedule.schedule_name)
                 else:
                     execution = Execution(
-                        user_id=1,
+                        user_id=st.session_state.get("user_id", 1),
                         campaign_name=f"{config.get('variables', {}).get('ReportType', 'Campaign')}",
                         status="queued",
                         send_method=config.get("send_method", ""),

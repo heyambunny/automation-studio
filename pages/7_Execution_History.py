@@ -2,8 +2,7 @@
 import streamlit as st
 import pandas as pd
 from database import SessionLocal
-from models import Execution, EmailLog
-from models import SMTPProfile, Setting
+from models import Execution, EmailLog, SMTPProfile, Setting
 from datetime import datetime
 import os
 from services.audit_service import log_action
@@ -22,16 +21,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 # ── Filters ──
 col1, col2, col3 = st.columns(3)
 with col1:
     all_statuses = ["completed", "in_progress", "queued", "failed", "pending"]
-    status_filter = st.multiselect(
-        "Status",
-        all_statuses,
-        default=all_statuses
-    )
+    status_filter = st.multiselect("Status", all_statuses, default=all_statuses)
 with col2:
     search = st.text_input("Search Campaign", placeholder="Campaign name...")
 with col3:
@@ -40,7 +37,10 @@ with col3:
 st.divider()
 
 # ── Query ──
-query = db.query(Execution)
+if role == "admin":
+    query = db.query(Execution)
+else:
+    query = db.query(Execution).filter_by(user_id=uid)
 
 if status_filter:
     query = query.filter(Execution.status.in_(status_filter))
@@ -123,10 +123,6 @@ if executions:
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Yes, Retry", key="confirm_retry_yes"):
-                    from services.campaign_executor import CampaignExecutor
-                    from database import SessionLocal as DB
-                    import json
-                    
                     failed_logs = db.query(EmailLog).filter(
                         EmailLog.execution_id == retry_id,
                         EmailLog.status == "failed"
@@ -142,7 +138,7 @@ if executions:
                         for log in failed_logs:
                             try:
                                 branch = log.branch_name
-                                setting = db.query(Setting).first()
+                                setting = db.query(Setting).filter_by(user_id=execution.user_id).first()
                                 folder_path = setting.folder_path if setting else ""
                                 
                                 file_path = None
@@ -153,23 +149,19 @@ if executions:
                                         break
                                 
                                 if file_path:
-                                    profile = db.query(SMTPProfile).first()
+                                    profile = db.query(SMTPProfile).filter_by(user_id=execution.user_id).first()
                                     if profile:
                                         from services.email_sender import EmailSender
                                         sender = EmailSender({
-                                            "server": profile.smtp_server,
-                                            "port": profile.smtp_port,
-                                            "email": profile.sender_email,
-                                            "password": profile.password,
-                                            "use_tls": profile.use_tls,
-                                            "sender_name": profile.sender_name or ""
+                                            "server": profile.smtp_server, "port": profile.smtp_port,
+                                            "email": profile.sender_email, "password": profile.password,
+                                            "use_tls": profile.use_tls, "sender_name": profile.sender_name or ""
                                         })
                                         
                                         to_list = [e.strip() for e in log.recipient_to.split(",") if e.strip()]
                                         
                                         result = sender.send_email(
-                                            to_recipients=to_list,
-                                            subject=log.subject or "Report",
+                                            to_recipients=to_list, subject=log.subject or "Report",
                                             html_body=f"<p>Resending failed email.</p>",
                                             attachments=[file_path]
                                         )
@@ -183,14 +175,8 @@ if executions:
                                 log.error_message = str(e)
                                 db.commit()
                         
-                        sent_count = db.query(EmailLog).filter(
-                            EmailLog.execution_id == retry_id,
-                            EmailLog.status == "sent"
-                        ).count()
-                        failed_count = db.query(EmailLog).filter(
-                            EmailLog.execution_id == retry_id,
-                            EmailLog.status == "failed"
-                        ).count()
+                        sent_count = db.query(EmailLog).filter(EmailLog.execution_id == retry_id, EmailLog.status == "sent").count()
+                        failed_count = db.query(EmailLog).filter(EmailLog.execution_id == retry_id, EmailLog.status == "failed").count()
                         
                         execution.sent_count = sent_count
                         execution.failed_count = failed_count
@@ -210,6 +196,6 @@ if executions:
                     st.rerun()
 
 else:
-    st.info("No executions found matching your filters. Campaigns will appear here after you send them.")
+    st.info("No executions found matching your filters.")
 
 db.close()

@@ -1,4 +1,3 @@
-# services/campaign_executor.py
 import os
 import re
 from datetime import datetime
@@ -23,7 +22,8 @@ class CampaignExecutor:
         
         self.execution = db.query(Execution).filter_by(id=execution_id).first()
         
-        setting = db.query(Setting).first()
+        user_id = config.get("user_id", 1)
+        setting = db.query(Setting).filter_by(user_id=user_id).first()
         self.folder_path = config.get("campaign_folder") or (setting.folder_path if setting else "")
         self.sheet_name = config.get("sheet_name", "Summary")
         self.start_cell = config.get("start_cell", "B5")
@@ -180,7 +180,8 @@ class CampaignExecutor:
 <p style="margin:0 0 3px 0;">Please find attached the <strong>{report_type}</strong> for your branch.</p>
 <p style="margin:6px 0 0 0;">Thanks &amp; Regards,<br><strong>{sender_name}</strong></p>"""
                 else:
-                    email_body = f"""<p style="margin:0 0 3px 0;">Dear <strong>{branch}</strong> Team,</p>"""
+                    email_body = f"""<p style="margin:0 0 3px 0;">Dear <strong>{branch}</strong> Team,</p>
+<p style="margin:0 0 8px 0;">Please find below the <strong>{report_type}</strong> for your branch.</p>"""
                     
                     if ai_summary:
                         email_body += f"""<div style="background-color:#f5f5f5;padding:8px 12px;border-radius:5px;margin:6px 0;">

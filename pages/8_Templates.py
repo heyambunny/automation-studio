@@ -1,3 +1,4 @@
+# pages/8_Templates.py
 import streamlit as st
 import pandas as pd
 from database import SessionLocal
@@ -16,6 +17,8 @@ Use variables like <code>{{BranchName}}</code>, <code>{{ReportType}}</code>, <co
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 tab1, tab2 = st.tabs(["📧 Subject Line Templates", "📝 Email Body Templates"])
 
@@ -35,6 +38,7 @@ with tab1:
         if st.button("💾 Save Subject Template"):
             if template_name and template_text:
                 new_template = Template(
+                    user_id=uid,
                     template_name=template_name,
                     template_type="subject",
                     content=template_text
@@ -46,21 +50,22 @@ with tab1:
             else:
                 st.error("Please fill all fields.")
     
-    # List saved subject templates
-    subject_templates = db.query(Template).filter_by(template_type="subject").all()
+    if role == "admin":
+        subject_templates = db.query(Template).filter_by(template_type="subject").all()
+    else:
+        subject_templates = db.query(Template).filter_by(template_type="subject", user_id=uid).all()
     
     if subject_templates:
         st.write("**Saved Subject Templates:**")
         st.dataframe(
             pd.DataFrame([{"Name": t.template_name, "Template": t.content} for t in subject_templates]),
-            use_container_width=True,
-            hide_index=True
+            use_container_width=True, hide_index=True
         )
         
         selected_subj = st.selectbox("Manage subject template", [t.template_name for t in subject_templates], key="sel_subj")
         if selected_subj:
-            template = db.query(Template).filter_by(template_name=selected_subj, template_type="subject").first()
-            if st.button("🗑️ Delete Subject Template", key="del_subj"):
+            template = next((t for t in subject_templates if t.template_name == selected_subj), None)
+            if template and st.button("🗑️ Delete Subject Template", key="del_subj"):
                 db.delete(template)
                 db.commit()
                 st.success(f"Deleted '{selected_subj}'.")
@@ -95,6 +100,7 @@ Regards,
         if st.button("💾 Save Body Template"):
             if body_name and body_text:
                 new_template = Template(
+                    user_id=uid,
                     template_name=body_name,
                     template_type="body",
                     content=body_text
@@ -106,29 +112,30 @@ Regards,
             else:
                 st.error("Please fill all fields.")
     
-    # List saved body templates
-    body_templates = db.query(Template).filter_by(template_type="body").all()
+    if role == "admin":
+        body_templates = db.query(Template).filter_by(template_type="body").all()
+    else:
+        body_templates = db.query(Template).filter_by(template_type="body", user_id=uid).all()
     
     if body_templates:
         st.write("**Saved Body Templates:**")
         st.dataframe(
             pd.DataFrame([{"Name": t.template_name, "Content": t.content[:100] + "..." if len(t.content) > 100 else t.content} for t in body_templates]),
-            use_container_width=True,
-            hide_index=True
+            use_container_width=True, hide_index=True
         )
         
         selected_body = st.selectbox("Manage body template", [t.template_name for t in body_templates], key="sel_body")
         if selected_body:
-            template = db.query(Template).filter_by(template_name=selected_body, template_type="body").first()
-            
-            with st.expander("📝 View Full Template"):
-                st.text(template.content)
-            
-            if st.button("🗑️ Delete Body Template", key="del_body"):
-                db.delete(template)
-                db.commit()
-                st.success(f"Deleted '{selected_body}'.")
-                st.rerun()
+            template = next((t for t in body_templates if t.template_name == selected_body), None)
+            if template:
+                with st.expander("📝 View Full Template"):
+                    st.text(template.content)
+                
+                if st.button("🗑️ Delete Body Template", key="del_body"):
+                    db.delete(template)
+                    db.commit()
+                    st.success(f"Deleted '{selected_body}'.")
+                    st.rerun()
     else:
         st.info("No body templates saved yet.")
 

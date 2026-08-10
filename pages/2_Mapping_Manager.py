@@ -22,6 +22,8 @@ Download the sample CSV, fill in your branches, and upload it.
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 tab1, tab2 = st.tabs(["📤 Upload New Mapping", "📋 Saved Mappings"])
 
@@ -60,7 +62,7 @@ with tab1:
                 df.to_csv(file_path, index=False)
                 
                 mapping = Mapping(
-                    user_id=1,
+                    user_id=uid,
                     mapping_name=mapping_name,
                     file_path=file_path
                 )
@@ -86,7 +88,10 @@ with tab1:
 with tab2:
     st.subheader("Saved Mappings")
     
-    mappings = db.query(Mapping).all()
+    if role == "admin":
+        mappings = db.query(Mapping).all()
+    else:
+        mappings = db.query(Mapping).filter_by(user_id=uid).all()
     
     if mappings:
         mapping_list = []
@@ -106,39 +111,40 @@ with tab2:
         selected_mapping = st.selectbox("Select mapping to view or delete", [m.mapping_name for m in mappings])
         
         if selected_mapping:
-            mapping = db.query(Mapping).filter_by(mapping_name=selected_mapping).first()
-            entries = db.query(MappingEntry).filter_by(mapping_id=mapping.id).all()
-            
-            if entries:
-                entry_data = []
-                for e in entries:
-                    entry_data.append({
-                        "Branch Name": e.branch_name,
-                        "To": e.to_recipients,
-                        "CC": e.cc_recipients
-                    })
-                st.dataframe(pd.DataFrame(entry_data), use_container_width=True, hide_index=True)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🗑️ Delete Mapping", type="secondary"):
-                    st.session_state.confirm_delete_mapping = selected_mapping
-            
-            if st.session_state.get("confirm_delete_mapping") == selected_mapping:
-                st.error(f"⚠️ Delete mapping '{selected_mapping}'? This cannot be undone.")
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("✅ Yes, Delete", key="confirm_del_map"):
-                        log_action("mapping_deleted", "mapping", mapping.id, selected_mapping)
-                        db.delete(mapping)
-                        db.commit()
-                        st.session_state.confirm_delete_mapping = None
-                        st.success(f"Mapping '{selected_mapping}' deleted.")
-                        st.rerun()
-                with c2:
-                    if st.button("❌ Cancel", key="cancel_del_map"):
-                        st.session_state.confirm_delete_mapping = None
-                        st.rerun()
+            mapping = db.query(Mapping).filter_by(mapping_name=selected_mapping, user_id=uid if role != "admin" else None).first()
+            if mapping:
+                entries = db.query(MappingEntry).filter_by(mapping_id=mapping.id).all()
+                
+                if entries:
+                    entry_data = []
+                    for e in entries:
+                        entry_data.append({
+                            "Branch Name": e.branch_name,
+                            "To": e.to_recipients,
+                            "CC": e.cc_recipients
+                        })
+                    st.dataframe(pd.DataFrame(entry_data), use_container_width=True, hide_index=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Delete Mapping", type="secondary"):
+                        st.session_state.confirm_delete_mapping = selected_mapping
+                
+                if st.session_state.get("confirm_delete_mapping") == selected_mapping:
+                    st.error(f"⚠️ Delete mapping '{selected_mapping}'? This cannot be undone.")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Yes, Delete", key="confirm_del_map"):
+                            log_action("mapping_deleted", "mapping", mapping.id, selected_mapping)
+                            db.delete(mapping)
+                            db.commit()
+                            st.session_state.confirm_delete_mapping = None
+                            st.success(f"Mapping '{selected_mapping}' deleted.")
+                            st.rerun()
+                    with c2:
+                        if st.button("❌ Cancel", key="cancel_del_map"):
+                            st.session_state.confirm_delete_mapping = None
+                            st.rerun()
     else:
         st.info("No saved mappings yet. Upload one from the 'Upload New Mapping' tab.")
 

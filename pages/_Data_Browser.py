@@ -4,6 +4,14 @@ import pandas as pd
 from database import engine, init_db
 from sqlalchemy import inspect
 
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+    st.stop()
+
+if st.session_state.get("user_role") != "admin":
+    st.error("Access denied. Admin only.")
+    st.stop()
+
 st.set_page_config(page_title="Data Browser", layout="wide")
 st.title("🗄️ Data Browser")
 

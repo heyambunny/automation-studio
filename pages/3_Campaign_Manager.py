@@ -21,6 +21,9 @@ Next time, just load it and execute — no need to configure everything again.
 </div>
 """, unsafe_allow_html=True)
 
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
+
 def load_campaigns():
     campaigns = []
     if os.path.exists(RECIPES_DIR):
@@ -28,14 +31,16 @@ def load_campaigns():
             if f.endswith('.json'):
                 with open(os.path.join(RECIPES_DIR, f), 'r') as file:
                     data = json.load(file)
-                    data['filename'] = f
-                    campaigns.append(data)
+                    if role == "admin" or data.get('user_id') == uid:
+                        data['filename'] = f
+                        campaigns.append(data)
     return campaigns
 
 def save_campaign(name, config):
     filename = f"{name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     config['saved_name'] = name
     config['saved_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    config['user_id'] = uid
     with open(os.path.join(RECIPES_DIR, filename), 'w') as f:
         json.dump(config, f, indent=2)
     return filename
@@ -98,7 +103,6 @@ with tab1:
                 if st.button("🗑️ Delete", use_container_width=True):
                     st.session_state.confirm_delete = selected_name
             
-            # Confirm Execute
             if st.session_state.get("confirm_execute") == selected_name:
                 st.warning(f"⚠️ Execute '{selected_name}'? This will send all emails.")
                 col_a, col_b = st.columns(2)
@@ -114,7 +118,6 @@ with tab1:
                         st.session_state.confirm_execute = None
                         st.rerun()
             
-            # Confirm Delete
             if st.session_state.get("confirm_delete") == selected_name:
                 st.error(f"⚠️ Delete '{selected_name}'? This cannot be undone.")
                 col_a, col_b = st.columns(2)

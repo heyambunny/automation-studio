@@ -21,11 +21,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 # ── Folder Path ──
 st.subheader("📁 Default Reports Folder")
 
-existing_setting = db.query(Setting).first()
+existing_setting = db.query(Setting).filter_by(user_id=uid).first()
 current_folder = existing_setting.folder_path if existing_setting else ""
 
 if current_folder and os.path.exists(current_folder):
@@ -71,7 +73,7 @@ if st.button("💾 Save Folder Path"):
         if existing_setting:
             existing_setting.folder_path = folder_path
         else:
-            new_setting = Setting(user_id=1, folder_path=folder_path)
+            new_setting = Setting(user_id=uid, folder_path=folder_path)
             db.add(new_setting)
         db.commit()
         log_action("folder_path_updated", "setting", existing_setting.id if existing_setting else None, folder_path)
@@ -117,7 +119,7 @@ if st.button("💾 Save Sheet Settings"):
         existing_setting.default_starting_cell = default_cell
     else:
         new_setting = Setting(
-            user_id=1,
+            user_id=uid,
             default_sheet_name=default_sheet,
             default_starting_cell=default_cell
         )
@@ -140,7 +142,7 @@ if IS_WINDOWS:
         if existing_setting:
             existing_setting.outlook_enabled = new_outlook
         else:
-            new_setting = Setting(user_id=1, outlook_enabled=new_outlook)
+            new_setting = Setting(user_id=uid, outlook_enabled=new_outlook)
             db.add(new_setting)
         db.commit()
         if new_outlook:
@@ -156,7 +158,10 @@ st.divider()
 # ── SMTP Profiles ──
 st.subheader("📧 SMTP Profiles")
 
-profiles = db.query(SMTPProfile).all()
+if role == "admin":
+    profiles = db.query(SMTPProfile).all()
+else:
+    profiles = db.query(SMTPProfile).filter_by(user_id=uid).all()
 
 if profiles:
     profile_data = []
@@ -190,12 +195,9 @@ with st.expander("➕ Add New SMTP Profile"):
             from services.email_sender import EmailSender
             
             test_config = {
-                "server": smtp_server,
-                "port": smtp_port,
-                "email": sender_email,
-                "password": password,
-                "use_tls": use_tls,
-                "sender_name": sender_name
+                "server": smtp_server, "port": smtp_port,
+                "email": sender_email, "password": password,
+                "use_tls": use_tls, "sender_name": sender_name
             }
             
             tester = EmailSender(test_config)
@@ -211,18 +213,14 @@ with st.expander("➕ Add New SMTP Profile"):
         if st.button("💾 Save Profile"):
             if profile_name and smtp_server and sender_email and password:
                 if is_default:
-                    db.query(SMTPProfile).filter(SMTPProfile.is_default == True).update({"is_default": False})
+                    db.query(SMTPProfile).filter_by(user_id=uid, is_default=True).update({"is_default": False})
                 
                 new_profile = SMTPProfile(
-                    user_id=1,
-                    profile_name=profile_name,
-                    smtp_server=smtp_server,
-                    smtp_port=smtp_port,
-                    sender_email=sender_email,
-                    sender_name=sender_name,
-                    password=password,
-                    use_tls=use_tls,
-                    is_default=is_default
+                    user_id=uid,
+                    profile_name=profile_name, smtp_server=smtp_server,
+                    smtp_port=smtp_port, sender_email=sender_email,
+                    sender_name=sender_name, password=password,
+                    use_tls=use_tls, is_default=is_default
                 )
                 db.add(new_profile)
                 db.commit()
@@ -245,10 +243,11 @@ if profiles:
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Yes, Delete", key="confirm_del"):
-                    profile = db.query(SMTPProfile).filter_by(profile_name=selected_profile).first()
-                    log_action("smtp_profile_deleted", "smtp_profile", profile.id, selected_profile)
-                    db.delete(profile)
-                    db.commit()
+                    profile = db.query(SMTPProfile).filter_by(profile_name=selected_profile, user_id=uid).first()
+                    if profile:
+                        log_action("smtp_profile_deleted", "smtp_profile", profile.id, selected_profile)
+                        db.delete(profile)
+                        db.commit()
                     st.session_state.confirm_delete_profile = None
                     st.success(f"Profile '{selected_profile}' deleted.")
                     st.rerun()

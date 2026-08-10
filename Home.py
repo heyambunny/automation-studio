@@ -43,7 +43,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
-setting = db.query(Setting).first()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
 # ── Header ──
 st.markdown(f"""
@@ -83,25 +84,22 @@ with col_info:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Welcome ──
-total_campaigns = db.query(Execution).count()
-if total_campaigns == 0:
-    st.markdown("""
-    <div class="info-box" style="background:#E3F2FD;border-left-color:#2196F3;">
-        <p style="margin:0;font-size:13px;color:#1565C0;"><strong>👋 Welcome!</strong></p>
-        <p style="margin:3px 0 0 0;font-size:12px;color:#555;">
-        Get started: ⚙️ <b>Settings</b> → 🗺️ <b>Mapping Manager</b> → 🚀 <b>New Campaign</b>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+# ── Stats (Admin: all, Manager: own) ──
+if role == "admin":
+    total_campaigns = db.query(Execution).count()
+    completed = db.query(Execution).filter(Execution.status == "completed").count()
+    in_progress = db.query(Execution).filter(Execution.status == "in_progress").count()
+    failed = db.query(Execution).filter(Execution.status == "failed").count()
+    sent_emails = db.query(EmailLog).filter(EmailLog.status == "sent").count()
+    total_emails = db.query(EmailLog).count()
+else:
+    total_campaigns = db.query(Execution).filter_by(user_id=uid).count()
+    completed = db.query(Execution).filter_by(user_id=uid).filter(Execution.status == "completed").count()
+    in_progress = db.query(Execution).filter_by(user_id=uid).filter(Execution.status == "in_progress").count()
+    failed = db.query(Execution).filter_by(user_id=uid).filter(Execution.status == "failed").count()
+    total_emails = db.query(EmailLog).join(Execution).filter(Execution.user_id == uid).count()
+    sent_emails = db.query(EmailLog).join(Execution).filter(Execution.user_id == uid, EmailLog.status == "sent").count()
 
-# ── Stats Row ──
-total_campaigns = db.query(Execution).count()
-completed = db.query(Execution).filter(Execution.status == "completed").count()
-in_progress = db.query(Execution).filter(Execution.status == "in_progress").count()
-failed = db.query(Execution).filter(Execution.status == "failed").count()
-sent_emails = db.query(EmailLog).filter(EmailLog.status == "sent").count()
-total_emails = db.query(EmailLog).count()
 success_rate = f"{(sent_emails / total_emails * 100):.0f}%" if total_emails > 0 else "—"
 
 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -128,9 +126,9 @@ with col1:
     status_data = pd.DataFrame({
         "Status": ["Completed", "Running", "Queued", "Failed", "Pending"],
         "Count": [completed, in_progress,
-                  db.query(Execution).filter(Execution.status == "queued").count(),
+                  db.query(Execution).filter(Execution.status == "queued").count() if role == "admin" else db.query(Execution).filter_by(user_id=uid).filter(Execution.status == "queued").count(),
                   failed,
-                  db.query(Execution).filter(Execution.status == "pending").count()]
+                  db.query(Execution).filter(Execution.status == "pending").count() if role == "admin" else db.query(Execution).filter_by(user_id=uid).filter(Execution.status == "pending").count()]
     })
     status_data = status_data[status_data["Count"] > 0]
     if not status_data.empty:
@@ -145,7 +143,12 @@ with col1:
 with col2:
     st.markdown('<p class="section-title">Emails Sent — Last 7 Days</p>', unsafe_allow_html=True)
     last_7 = datetime.now() - timedelta(days=7)
-    recent_logs = db.query(EmailLog).filter(EmailLog.sent_at >= last_7, EmailLog.status == "sent").all()
+    if role == "admin":
+        recent_logs = db.query(EmailLog).filter(EmailLog.sent_at >= last_7, EmailLog.status == "sent").all()
+    else:
+        recent_logs = db.query(EmailLog).join(Execution).filter(
+            EmailLog.sent_at >= last_7, EmailLog.status == "sent", Execution.user_id == uid
+        ).all()
     
     if recent_logs:
         daily_counts = {}
@@ -173,7 +176,10 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown('<p class="section-title">Recent Executions</p>', unsafe_allow_html=True)
-    recent = db.query(Execution).order_by(Execution.created_at.desc()).limit(10).all()
+    if role == "admin":
+        recent = db.query(Execution).order_by(Execution.created_at.desc()).limit(10).all()
+    else:
+        recent = db.query(Execution).filter_by(user_id=uid).order_by(Execution.created_at.desc()).limit(10).all()
     
     if recent:
         rows = []
@@ -192,7 +198,10 @@ with col1:
 
 with col2:
     st.markdown('<p class="section-title">Upcoming Scheduled</p>', unsafe_allow_html=True)
-    upcoming = db.query(Schedule).filter(Schedule.enabled == True).order_by(Schedule.next_run).limit(10).all()
+    if role == "admin":
+        upcoming = db.query(Schedule).filter(Schedule.enabled == True).order_by(Schedule.next_run).limit(10).all()
+    else:
+        upcoming = db.query(Schedule).filter_by(user_id=uid, enabled=True).order_by(Schedule.next_run).limit(10).all()
     
     if upcoming:
         rows = []

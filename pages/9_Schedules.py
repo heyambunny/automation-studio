@@ -1,3 +1,4 @@
+# pages/9_Schedules.py
 import streamlit as st
 import pandas as pd
 from database import SessionLocal
@@ -17,9 +18,13 @@ Campaigns are created from <b>New Campaign → Step 5 → Schedule</b>.
 """, unsafe_allow_html=True)
 
 db = SessionLocal()
+uid = st.session_state.get("user_id", 1)
+role = st.session_state.get("user_role", "manager")
 
-# Load schedules
-schedules = db.query(Schedule).order_by(Schedule.next_run).all()
+if role == "admin":
+    schedules = db.query(Schedule).order_by(Schedule.next_run).all()
+else:
+    schedules = db.query(Schedule).filter_by(user_id=uid).order_by(Schedule.next_run).all()
 
 if schedules:
     schedule_data = []
@@ -38,26 +43,38 @@ if schedules:
     
     st.divider()
     
-    # Cancel schedule
     st.subheader("🗑️ Cancel Schedule")
-    selected_id = st.selectbox("Select schedule to cancel", [s.id for s in schedules], 
-                                format_func=lambda x: f"#{x} - {next((s.schedule_name for s in schedules if s.id == x), '')}")
+    selected_id = st.selectbox(
+        "Select schedule to cancel", 
+        [s.id for s in schedules], 
+        format_func=lambda x: f"#{x} - {next((s.schedule_name for s in schedules if s.id == x), '')}"
+    )
     
     if st.button("❌ Cancel Schedule", type="secondary"):
-        scheduler_service.remove_schedule(selected_id)
-        st.success(f"Schedule #{selected_id} cancelled.")
-        st.rerun()
+        st.session_state.confirm_cancel = selected_id
     
-    # View job status
+    if st.session_state.get("confirm_cancel") == selected_id:
+        st.error("⚠️ Cancel this schedule?")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("✅ Yes, Cancel", key="confirm_cancel_yes"):
+                scheduler_service.remove_schedule(selected_id)
+                st.session_state.confirm_cancel = None
+                st.success(f"Schedule #{selected_id} cancelled.")
+                st.rerun()
+        with c2:
+            if st.button("❌ No", key="confirm_cancel_no"):
+                st.session_state.confirm_cancel = None
+                st.rerun()
+    
     st.divider()
-    st.subheader("📊 Active Jobs in Scheduler")
+    st.subheader("📊 Active Jobs")
     jobs = scheduler_service.get_jobs()
     if jobs:
         st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
     else:
-        st.info("No active jobs in the scheduler.")
-
+        st.info("No active jobs.")
 else:
-    st.info("No scheduled campaigns yet. Create a campaign and choose 'Schedule' in Step 6.")
+    st.info("No scheduled campaigns yet. Create a campaign and choose 'Schedule' in Step 5.")
 
 db.close()

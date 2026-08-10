@@ -10,6 +10,10 @@ from services.excel_reader import ExcelReader
 from services.email_sender import EmailSender
 from services.audit_service import log_action
 
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+    st.stop()
+
 st.title("🤖 AI Assistant")
 st.markdown("""
 <div style="margin-top:-30px;margin-bottom:10px;">
