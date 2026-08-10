@@ -11,11 +11,6 @@ class EmailSender:
     """Sends emails via SMTP"""
     
     def __init__(self, smtp_config: Dict[str, str]):
-        """
-        smtp_config: {
-            server, port, email, password, use_tls, sender_name
-        }
-        """
         self.server = smtp_config.get("server", "")
         self.port = int(smtp_config.get("port", 587))
         self.email = smtp_config.get("email", "")
@@ -24,7 +19,6 @@ class EmailSender:
         self.sender_name = smtp_config.get("sender_name", "")
     
     def test_connection(self) -> Dict[str, any]:
-        """Test SMTP connection and authentication"""
         try:
             if self.use_tls:
                 server = smtplib.SMTP(self.server, self.port, timeout=10)
@@ -44,28 +38,26 @@ class EmailSender:
         subject: str,
         html_body: str,
         cc_recipients: Optional[List[str]] = None,
+        bcc_recipients: Optional[List[str]] = None,
         attachments: Optional[List[str]] = None
     ) -> Dict[str, any]:
-        """
-        Send an email with optional CC and attachments.
-        Returns {success: bool, message: str}
-        """
         try:
             msg = MIMEMultipart("alternative")
             msg["From"] = f"{self.sender_name} <{self.email}>" if self.sender_name else self.email
             msg["To"] = ", ".join(to_recipients)
             msg["Subject"] = subject
             
+            all_recipients = list(to_recipients)
+            
             if cc_recipients:
                 msg["Cc"] = ", ".join(cc_recipients)
-                all_recipients = to_recipients + cc_recipients
-            else:
-                all_recipients = to_recipients
+                all_recipients.extend(cc_recipients)
             
-            # Attach HTML body
+            if bcc_recipients:
+                all_recipients.extend(bcc_recipients)
+            
             msg.attach(MIMEText(html_body, "html"))
             
-            # Attach files
             if attachments:
                 for file_path in attachments:
                     if os.path.exists(file_path):
@@ -79,7 +71,6 @@ class EmailSender:
                             )
                             msg.attach(part)
             
-            # Send
             if self.use_tls:
                 server = smtplib.SMTP(self.server, self.port, timeout=30)
                 server.starttls()

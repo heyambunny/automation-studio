@@ -46,14 +46,14 @@ settings_page = st.Page("pages/1_Settings.py", title="⚙ Settings")
 mapping_page = st.Page("pages/2_Mapping_Manager.py", title="⊞ Mapping Manager")
 campaign_mgr_page = st.Page("pages/3_Campaign_Manager.py", title="⊟ Campaign Manager")
 new_campaign_page = st.Page("pages/4_New_Campaign.py", title="＋ New Campaign")
-drafts_page = st.Page("pages/6_Drafts.py", title="✉ Drafts")
+# drafts_page = st.Page("pages/6_Drafts.py", title="✉ Drafts")
 history_page = st.Page("pages/7_Execution_History.py", title="↻ Execution History")
 templates_page = st.Page("pages/8_Templates.py", title="□ Templates")
 schedules_page = st.Page("pages/9_Schedules.py", title="◷ Schedules")
 data_page = st.Page("pages/_Data_Browser.py", title="⊛ Data Browser")
 
 pages = [home_page, settings_page, mapping_page, campaign_mgr_page,
-         new_campaign_page, drafts_page, history_page,
+         new_campaign_page, history_page,
          templates_page, schedules_page]
 
 if st.session_state.user_role == "admin":

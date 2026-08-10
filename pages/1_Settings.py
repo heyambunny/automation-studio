@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import os
-from config import IS_WINDOWS
 from database import SessionLocal
 from models import Setting, SMTPProfile
 from services.audit_service import log_action
@@ -128,30 +127,6 @@ if st.button("💾 Save Sheet Settings"):
     log_action("sheet_settings_updated", "setting", existing_setting.id if existing_setting else None)
     st.success("Sheet settings saved.")
     st.rerun()
-
-st.divider()
-
-# ── Outlook Integration ──
-st.subheader("📨 Outlook Integration")
-
-if IS_WINDOWS:
-    outlook_enabled = existing_setting.outlook_enabled if existing_setting else False
-    new_outlook = st.toggle("Enable Outlook Integration", value=outlook_enabled)
-    
-    if new_outlook != outlook_enabled:
-        if existing_setting:
-            existing_setting.outlook_enabled = new_outlook
-        else:
-            new_setting = Setting(user_id=uid, outlook_enabled=new_outlook)
-            db.add(new_setting)
-        db.commit()
-        if new_outlook:
-            st.success("Outlook integration enabled.")
-        else:
-            st.info("Outlook integration disabled.")
-        st.rerun()
-else:
-    st.warning("Outlook integration is only available on Windows.")
 
 st.divider()
 

@@ -229,10 +229,12 @@ class CampaignExecutor:
                         error = "Outlook not available"
                 elif self.smtp_sender:
                     attachments = [attachment_path] if attachment_path and os.path.exists(attachment_path) else []
+                    bcc_list = [self.smtp_sender.email] if self.smtp_sender.email else []
                     result = self.smtp_sender.send_email(
                         to_recipients=to_list,
                         subject=email["subject"],
                         html_body=email["html_body"],
+                        bcc_recipients=bcc_list,
                         cc_recipients=cc_list,
                         attachments=attachments
                     )
