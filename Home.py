@@ -224,8 +224,8 @@ with qc1:
     if st.button("New Campaign", use_container_width=True, type="primary"):
         st.switch_page("pages/4_New_Campaign.py")
 with qc2:
-    if st.button("AI Assistant", use_container_width=True):
-        st.switch_page("pages/5_AI_Assistant.py")
+    if st.button("Schedules", use_container_width=True):
+        st.switch_page("pages/9_Schedules.py")
 with qc3:
     if st.button("Execution History", use_container_width=True):
         st.switch_page("pages/7_Execution_History.py")
