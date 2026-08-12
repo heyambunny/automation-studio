@@ -42,7 +42,7 @@ class EmailSender:
         attachments: Optional[List[str]] = None
     ) -> Dict[str, any]:
         try:
-            msg = MIMEMultipart("alternative")
+            msg = MIMEMultipart("mixed")
             msg["From"] = f"{self.sender_name} <{self.email}>" if self.sender_name else self.email
             msg["To"] = ", ".join(to_recipients)
             msg["Subject"] = subject
@@ -67,7 +67,7 @@ class EmailSender:
                             encoders.encode_base64(part)
                             part.add_header(
                                 "Content-Disposition",
-                                f"attachment; filename={os.path.basename(file_path)}"
+                                f'attachment; filename="{os.path.basename(file_path)}"'
                             )
                             msg.attach(part)
             

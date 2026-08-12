@@ -31,7 +31,8 @@ def load_campaigns():
             if f.endswith('.json'):
                 with open(os.path.join(RECIPES_DIR, f), 'r') as file:
                     data = json.load(file)
-                    if role == "admin" or data.get('user_id') == uid:
+                    campaign_uid = data.get('user_id')
+                    if role == "admin" or campaign_uid == uid or campaign_uid is None:
                         data['filename'] = f
                         campaigns.append(data)
     return campaigns

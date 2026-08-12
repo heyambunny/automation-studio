@@ -7,10 +7,7 @@ class EmailComposer:
     """Composes emails by resolving template variables"""
     
     @staticmethod
-    def resolve_template(template: str, variables: Dict[str, str]) -> str:
-        """
-        Replace {{variable}} placeholders with values.
-        """
+    def resolve_template(template: str, variables: Dict[str, str], cell_data: Dict[str, str] = None) -> str:
         resolved = template
         
         variables["CurrentDate"] = datetime.now().strftime("%Y-%m-%d")
@@ -18,6 +15,18 @@ class EmailComposer:
         for key, value in variables.items():
             placeholder = f"{{{{{key}}}}}"
             resolved = resolved.replace(placeholder, str(value) if value else "")
+        
+        if cell_data:
+            def replace_cell(match):
+                ref = match.group(1)
+                if '!' in ref:
+                    key = ref
+                else:
+                    key = f"Sheet1!{ref}"
+                val = cell_data.get(key, cell_data.get(ref, ""))
+                return str(val) if val else match.group(0)
+            
+            resolved = re.sub(r'\{\{Cell:(.*?)\}\}', replace_cell, resolved)
         
         return resolved
     
@@ -28,6 +37,7 @@ class EmailComposer:
         summary_html: str,
         branch_name: str,
         variables: Dict[str, str],
+        cell_data: Dict[str, str] = None,
         sender_name: str = "",
         signature: str = ""
     ) -> Dict[str, str]:
@@ -37,33 +47,21 @@ class EmailComposer:
         branch_vars["SenderName"] = sender_name or "Automation Studio"
         branch_vars["Signature"] = signature or ""
         
-        subject = EmailComposer.resolve_template(subject_template, branch_vars)
-        body = EmailComposer.resolve_template(body_template, branch_vars)
+        subject = EmailComposer.resolve_template(subject_template, branch_vars, cell_data)
+        body = EmailComposer.resolve_template(body_template, branch_vars, cell_data)
         
         if not body.strip():
             body = summary_html
         
-        # Keep intentional blank lines, remove excessive ones
-        body = re.sub(r'\n{3,}', '\n\n', body)
-        
-        # Convert \n\n to <br><br>
+        body = re.sub(r'\n{2,}', '\n\n', body)
         body = body.replace('\n\n', '<br><br>')
-        
-        # Convert remaining \n to <br>
         body = body.replace('\n', '<br>')
-        
-        # Clean excess whitespace around HTML table
         body = re.sub(r'<br>\s*<table', '<br><table', body)
         body = re.sub(r'</table>\s*<br>', '</table><br>', body)
-        
-        # Remove leading/trailing <br> around tables
         body = re.sub(r'<br><br>(<table)', r'<br>\1', body)
         body = re.sub(r'(</table>)<br><br>', r'\1<br>', body)
-        
-        # Remove 3+ <br> tags, keep max 2
         body = re.sub(r'(<br\s*/?>\s*){3,}', '<br><br>', body)
         
-        # Wrap in HTML
         if body and "<html>" not in body.lower():
             body = f"""<html>
 <body style="font-family: Arial, sans-serif;">

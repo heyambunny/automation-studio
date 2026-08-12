@@ -1,0 +1,49 @@
+{
+  "smtp_profile": "Himanshu Banyal",
+  "sender_name": "Himanshu Banyal",
+  "send_method": "SMTP",
+  "mapping_id": 4,
+  "campaign_folder": "",
+  "group_var": "BranchName",
+  "group_var_placeholder": "{{BranchName}}",
+  "mode": "static/static",
+  "ai_option": "",
+  "user_context": "",
+  "subject": "{{ReportType}} - {{BranchName}}",
+  "variables": {
+    "Month": "",
+    "Year": "",
+    "ReportType": "Pump Performance Report"
+  },
+  "body_template": "Dear {{BranchName}},\n\nPlease find attached the {{ReportType}} for your branch.\n\n{{Summary}}\n\nRegards\nHimanshu",
+  "attach_file": true,
+  "sheet_name": "Summary",
+  "start_cell": "C3",
+  "preview_data": [
+    {
+      "BranchName": "Ahmedabad",
+      "To": "sumitc@evolvebrands.com",
+      "CC": "himanshub@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    },
+    {
+      "BranchName": "Nagpur",
+      "To": "mohitd@evolvebrands.com",
+      "CC": "himanshub@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    },
+    {
+      "BranchName": "Mumbai",
+      "To": "seemam@evolvebrands.com",
+      "CC": "himanshub@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    }
+  ],
+  "action": "\ud83d\udce8 Send Now",
+  "saved_name": "Retailer Pump Scheme Report",
+  "saved_at": "2026-08-12 12:54:03",
+  "user_id": 1
+}

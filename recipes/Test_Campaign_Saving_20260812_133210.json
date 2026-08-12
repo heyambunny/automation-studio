@@ -1,0 +1,48 @@
+{
+  "smtp_profile": "Himanshu Banyal",
+  "sender_name": "Himanshu Banyal",
+  "send_method": "SMTP",
+  "mapping_id": 5,
+  "campaign_folder": "",
+  "group_var": "BranchName",
+  "group_var_placeholder": "{{BranchName}}",
+  "mode": "static/static",
+  "ai_option": "",
+  "user_context": "",
+  "subject": "",
+  "variables": {
+    "Month": "",
+    "Year": "",
+    "ReportType": "Performance Report"
+  },
+  "body_template": "Test",
+  "attach_file": true,
+  "sheet_name": null,
+  "start_cell": null,
+  "preview_data": [
+    {
+      "BranchName": "Mumbai",
+      "To": "rohanr@evolvebrands.com;himanshub@evolvebrands.com",
+      "CC": "sachin@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    },
+    {
+      "BranchName": "Nagpur",
+      "To": "anujm@evolvebrands.com",
+      "CC": "sweetyb@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    },
+    {
+      "BranchName": "Ahmedabad",
+      "To": "parmod@evolvebrands.com",
+      "CC": "krishnay@evolvebrands.com",
+      "File": "\u2705",
+      "Status": "Ready"
+    }
+  ],
+  "action": "\ud83d\udce8 Send Now",
+  "saved_name": "Test Campaign Saving",
+  "saved_at": "2026-08-12 13:32:10"
+}

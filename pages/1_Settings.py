@@ -10,11 +10,9 @@ st.title("⚙️ Settings")
 
 st.markdown("""
 <div style="background:#FFF3E0;padding:10px 14px;border-radius:8px;border-left:4px solid #FF9800;margin-bottom:15px;">
-<p style="margin:0;font-size:13px;color:#E65100;"><strong>⚡ Quick Setup Guide:</strong></p>
+<p style="margin:0;font-size:13px;color:#E65100;"><strong>⚡ Quick Setup:</strong></p>
 <p style="margin:3px 0 0 0;font-size:12px;color:#555;">
-1️⃣ Set your <b>reports folder</b> where all branch Excel files are stored<br>
-2️⃣ Configure at least one <b>SMTP profile</b> to send emails<br>
-3️⃣ Set default <b>sheet name</b> and <b>starting cell</b> for summary data
+Configure at least one <b>SMTP profile</b> to start sending emails.
 </p>
 </div>
 """, unsafe_allow_html=True)
@@ -23,65 +21,7 @@ db = SessionLocal()
 uid = st.session_state.get("user_id", 1)
 role = st.session_state.get("user_role", "manager")
 
-# ── Folder Path ──
-st.subheader("📁 Default Reports Folder")
-
 existing_setting = db.query(Setting).filter_by(user_id=uid).first()
-current_folder = existing_setting.folder_path if existing_setting else ""
-
-if current_folder and os.path.exists(current_folder):
-    st.success(f"📁 **{current_folder}**")
-    files = [f for f in os.listdir(current_folder) if f.endswith(('.xlsx', '.csv'))]
-    if files:
-        st.caption(f"📂 {len(files)} files found")
-    else:
-        st.warning("No Excel/CSV files in this folder.")
-elif current_folder:
-    st.error(f"❌ Folder not found: {current_folder}")
-
-st.caption("---")
-uploaded = st.file_uploader(
-    "📤 Upload any file from your reports folder to help locate it",
-    type=["xlsx", "csv"],
-    key="settings_folder_picker",
-    help="Pick any Excel/CSV file from the folder where all branch reports are stored."
-)
-
-if uploaded:
-    st.info(f"📄 File selected: **{uploaded.name}**")
-    st.caption("Now enter the folder path where this file is located:")
-
-folder_path = st.text_input(
-    "Folder path",
-    value=current_folder,
-    placeholder="e.g. /Users/username/Reports or C:\\Reports",
-    help="💡 Tip: Drag your folder into Terminal to copy the path, then paste here."
-)
-
-if folder_path:
-    if os.path.exists(folder_path):
-        st.success("✅ Folder exists")
-        files = [f for f in os.listdir(folder_path) if f.endswith(('.xlsx', '.csv'))]
-        if files:
-            st.caption(f"📂 {len(files)} Excel/CSV files found: {', '.join(files[:5])}{'...' if len(files) > 5 else ''}")
-    else:
-        st.error("❌ Folder not found")
-
-if st.button("💾 Save Folder Path"):
-    if folder_path and os.path.exists(folder_path):
-        if existing_setting:
-            existing_setting.folder_path = folder_path
-        else:
-            new_setting = Setting(user_id=uid, folder_path=folder_path)
-            db.add(new_setting)
-        db.commit()
-        log_action("folder_path_updated", "setting", existing_setting.id if existing_setting else None, folder_path)
-        st.success("✅ Folder path saved!")
-        st.rerun()
-    elif folder_path:
-        st.error("Folder does not exist. Check the path.")
-
-st.divider()
 
 # ── Logo ──
 st.subheader("🖼️ App Logo")
@@ -99,33 +39,6 @@ if uploaded_logo:
     with open(LOGO_PATH, "wb") as f:
         f.write(uploaded_logo.getbuffer())
     st.success("Logo updated!")
-    st.rerun()
-
-st.divider()
-
-# ── Default Sheet Settings ──
-st.subheader("📊 Default Sheet Settings")
-
-current_sheet = existing_setting.default_sheet_name if existing_setting else ""
-current_cell = existing_setting.default_starting_cell if existing_setting else ""
-
-default_sheet = st.text_input("Default Summary Sheet Name", value=current_sheet, placeholder="e.g. Summary")
-default_cell = st.text_input("Default Starting Cell", value=current_cell, placeholder="e.g. B5")
-
-if st.button("💾 Save Sheet Settings"):
-    if existing_setting:
-        existing_setting.default_sheet_name = default_sheet
-        existing_setting.default_starting_cell = default_cell
-    else:
-        new_setting = Setting(
-            user_id=uid,
-            default_sheet_name=default_sheet,
-            default_starting_cell=default_cell
-        )
-        db.add(new_setting)
-    db.commit()
-    log_action("sheet_settings_updated", "setting", existing_setting.id if existing_setting else None)
-    st.success("Sheet settings saved.")
     st.rerun()
 
 st.divider()
