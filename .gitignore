@@ -30,6 +30,8 @@ Thumbs.db
 # Uploads (keep folder, ignore files)
 uploads/mappings/*.csv
 logs/
+uploads/campaigns/
+recipes/
 
 # Streamlit
 .streamlit/secrets.toml
