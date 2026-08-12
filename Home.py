@@ -60,7 +60,7 @@ col_brand, col_info = st.columns([1, 3])
 with col_brand:
     logo_path = "assets/logo.png"
     if os.path.exists(logo_path):
-        st.image(logo_path, width=100)
+        st.image(logo_path, width=220)
     else:
         st.markdown("""
         <div style="border:1px solid #E5E5E5;border-radius:12px;padding:20px;text-align:center;background:white;">
