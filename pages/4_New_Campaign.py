@@ -140,6 +140,85 @@ elif st.session_state.campaign_step == 2:
                 f.write(file.getbuffer())
         st.success(f"✅ {len(uploaded_files)} files uploaded")
         st.rerun()
+    
+    # ── File Validation Summary ──
+    if existing_files or uploaded_files:
+        st.divider()
+        
+        mapping_id = st.session_state.campaign_config.get("mapping_id")
+        if mapping_id:
+            mapping_entries = db.query(MappingEntry).filter_by(mapping_id=mapping_id).all()
+        elif st.session_state.campaign_config.get("temp_mapping"):
+            mapping_entries = st.session_state.campaign_config["temp_mapping"]
+        else:
+            mapping_entries = []
+        
+        if mapping_entries:
+            total_branches = len(mapping_entries)
+            matched = 0
+            missing_list = []
+            ready_list = []
+            
+            for e in mapping_entries:
+                branch_name = e.branch_name if hasattr(e, 'branch_name') else e.get("BranchName", "")
+                file_found = os.path.exists(os.path.join(campaign_upload_dir, f"{branch_name}.xlsx")) or \
+                             os.path.exists(os.path.join(campaign_upload_dir, f"{branch_name}.csv"))
+                if file_found:
+                    matched += 1
+                    ready_list.append(branch_name)
+                else:
+                    missing_list.append(branch_name)
+            
+            missing_count = total_branches - matched
+            
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("📋 Total Branches", total_branches)
+            with m2:
+                st.metric("✅ Files Ready", matched)
+            with m3:
+                st.metric("⚠️ Missing", missing_count)
+            with m4:
+                success_pct = f"{(matched / total_branches * 100):.0f}%" if total_branches > 0 else "0%"
+                st.metric("📈 Ready %", success_pct)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            progress = matched / total_branches if total_branches > 0 else 0
+            st.progress(progress, text=f"Campaign readiness: {progress*100:.0f}%")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            col_ready, col_missing = st.columns(2)
+            
+            with col_ready:
+                st.markdown("""
+                <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px;">
+                    <p style="font-size:13px;font-weight:600;color:#166534;margin:0 0 8px;">✅ Ready to Send</p>
+                """, unsafe_allow_html=True)
+                if ready_list:
+                    for b in ready_list:
+                        st.markdown(f"<span style='font-size:12px;color:#166534;'>• {b}</span><br>", unsafe_allow_html=True)
+                else:
+                    st.caption("None")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col_missing:
+                st.markdown("""
+                <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;">
+                    <p style="font-size:13px;font-weight:600;color:#991B1B;margin:0 0 8px;">⚠️ Missing Files</p>
+                """, unsafe_allow_html=True)
+                if missing_list:
+                    for b in missing_list:
+                        st.markdown(f"<span style='font-size:12px;color:#991B1B;'>• {b}</span><br>", unsafe_allow_html=True)
+                else:
+                    st.caption("None")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            if missing_list:
+                st.warning(f"Upload missing files above to send emails to all {total_branches} branches.")
+            else:
+                st.success(f"🎉 All {total_branches} branches are ready to send!")
 
 # ── STEP 3: Content Settings ──
 elif st.session_state.campaign_step == 3:
@@ -216,7 +295,6 @@ elif st.session_state.campaign_step == 3:
     attach = st.checkbox("📎 Attach Excel file to email", value=True)
     st.session_state.campaign_config["attach_file"] = attach
     
-    # ── Sheet Settings with dropdown ──
     st.subheader("📊 Sheet Settings")
     
     campaign_folder = st.session_state.campaign_config.get("campaign_folder", "")
@@ -234,7 +312,7 @@ elif st.session_state.campaign_step == 3:
             except:
                 sheet_names = []
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if sheet_names:
             default_sheet_index = sheet_names.index(default_sheet) if default_sheet in sheet_names else 0
@@ -244,9 +322,12 @@ elif st.session_state.campaign_step == 3:
             sheet_name = st.text_input("Summary Sheet Name", value=default_sheet)
     with col2:
         start_cell = st.text_input("Starting Cell", value=default_cell)
+    with col3:
+        header_color = st.color_picker("Header Color", value="#FFD700")
     
     st.session_state.campaign_config["sheet_name"] = sheet_name
     st.session_state.campaign_config["start_cell"] = start_cell
+    st.session_state.campaign_config["header_color"] = header_color
     
     st.session_state.campaign_config["ai_option"] = ""
     st.session_state.campaign_config["user_context"] = ""
@@ -268,6 +349,7 @@ elif st.session_state.campaign_step == 4:
     campaign_folder = st.session_state.campaign_config.get("campaign_folder", "")
     group_var = st.session_state.campaign_config.get("group_var", "BranchName")
     group_var_placeholder = st.session_state.campaign_config.get("group_var_placeholder", "{{BranchName}}")
+    header_color = st.session_state.campaign_config.get("header_color", "#FFD700")
     
     if not campaign_folder:
         st.error("No files uploaded. Go back to Step 2 and upload files.")
@@ -287,8 +369,6 @@ elif st.session_state.campaign_step == 4:
                 file_exists = os.path.exists(os.path.join(campaign_folder, f"{branch_name}.xlsx")) or \
                              os.path.exists(os.path.join(campaign_folder, f"{branch_name}.csv"))
                 cc_value = e.cc_recipients if hasattr(e, 'cc_recipients') else e.get("CC", "")
-                if not cc_value or str(cc_value).lower() == "nan" or pd.isna(cc_value):
-                    cc_value = ""
                 preview_data.append({
                     group_var: branch_name,
                     "To": e.to_recipients if hasattr(e, 'to_recipients') else e.get("To"),
@@ -299,10 +379,8 @@ elif st.session_state.campaign_step == 4:
             
             st.session_state.campaign_config["preview_data"] = preview_data
             st.caption(f"📧 {len(preview_data)} branches found")
-            st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
             
             st.divider()
-            st.subheader("👁️ Email Preview")
             
             ready_branches = [d[group_var] for d in preview_data if d["Status"] == "Ready"]
             if ready_branches:
@@ -326,7 +404,7 @@ elif st.session_state.campaign_step == 4:
                     cell_data = {}
                     if os.path.exists(file_path):
                         summary_df = ExcelReader.detect_active_range(file_path, sheet_name, start_cell)
-                        summary_html = ExcelReader.dataframe_to_html(summary_df) if summary_df is not None else "<p>No summary data found.</p>"
+                        summary_html = ExcelReader.dataframe_to_html(summary_df, header_color) if summary_df is not None else "<p>No summary data found.</p>"
                         
                         user_template = body_template + " " + subject_template
                         cell_refs = re.findall(r'\{\{Cell:(.*?)\}\}', user_template)
@@ -352,20 +430,41 @@ elif st.session_state.campaign_step == 4:
                         preview_body = preview_body.replace(f"{{{{Cell:{ref}}}}}", str(val))
                     preview_body = preview_body.replace("\n", "<br>")
                     
+                    # ── Premium Email Preview ──
+                    st.markdown("""
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+                        <span style="font-size:18px;">📧</span>
+                        <span style="font-size:16px;font-weight:700;color:#0A0A0A;">Email Preview</span>
+                        <span style="background:#E8F5E9;color:#2E7D32;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px;margin-left:8px;">READY TO SEND</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     st.markdown(f"""
-                    <div style="max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;font-family:'Inter',sans-serif;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                        <div style="background:#f9fafb;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
-                            <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Email Preview</div>
-                            <div style="font-size:13px;margin-bottom:4px;"><strong>From:</strong> {sender_name}</div>
-                            <div style="font-size:13px;margin-bottom:4px;"><strong>To:</strong> {branch_data['To']}</div>
-                            {f'<div style="font-size:13px;margin-bottom:4px;"><strong>CC:</strong> {branch_data["CC"]}</div>' if branch_data.get('CC') and str(branch_data.get('CC')).lower() != 'nan' else ''}
-                            <div style="font-size:13px;"><strong>Subject:</strong> {preview_subject}</div>
+                    <div style="max-width:680px;margin:0 auto;background:white;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04);font-family:'Inter',sans-serif;">
+                        <div style="background:#FAFAFA;padding:20px 24px;border-bottom:1px solid #E5E7EB;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                                <div style="width:36px;height:36px;background:#0A0A0A;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;">
+                                    {sender_name[:1].upper()}
+                                </div>
+                                <div>
+                                    <div style="font-size:13px;font-weight:600;color:#0A0A0A;">{sender_name}</div>
+                                    <div style="font-size:11px;color:#9CA3AF;">Sender</div>
+                                </div>
+                                <span style="margin-left:auto;font-size:11px;color:#9CA3AF;background:#F5F5F5;padding:4px 10px;border-radius:8px;">Draft</span>
+                            </div>
+                            <div style="font-size:13px;color:#6B7280;line-height:1.8;">
+                                <div><strong style="color:#374151;display:inline-block;width:60px;">To:</strong> {branch_data['To']}</div>
+                                {f'<div><strong style="color:#374151;display:inline-block;width:60px;">CC:</strong> {branch_data["CC"]}</div>' if branch_data.get('CC') and str(branch_data.get('CC')).lower() != 'nan' else ''}
+                                <div><strong style="color:#374151;display:inline-block;width:60px;">Subject:</strong> {preview_subject}</div>
+                            </div>
                         </div>
-                        <div style="padding:24px 20px;font-size:14px;color:#1f2937;line-height:1.6;">
+                        <div style="padding:28px 24px;font-size:14px;color:#1F2937;line-height:1.7;">
                             {preview_body}
                         </div>
-                        <div style="background:#f9fafb;padding:12px 20px;border-top:1px solid #e5e7eb;text-align:center;">
-                            <span style="font-size:11px;color:#9ca3af;">📎 {os.path.basename(file_path) if os.path.exists(file_path) else 'No attachment'}</span>
+                        <div style="background:#FAFAFA;padding:14px 24px;border-top:1px solid #E5E7EB;display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:16px;">📎</span>
+                            <span style="font-size:12px;color:#6B7280;">{os.path.basename(file_path) if os.path.exists(file_path) else 'No attachment'}</span>
+                            <span style="margin-left:auto;font-size:11px;color:#9CA3AF;">Will be sent to {len(ready_branches)} branches</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)

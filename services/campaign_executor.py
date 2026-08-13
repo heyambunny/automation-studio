@@ -27,6 +27,7 @@ class CampaignExecutor:
         self.folder_path = config.get("campaign_folder") or (setting.folder_path if setting else "")
         self.sheet_name = config.get("sheet_name", "Summary")
         self.start_cell = config.get("start_cell", "B5")
+        self.header_color = config.get("header_color", "#FFD700")
         
         self.smtp_sender = None
         if "SMTP" in config.get("send_method", ""):
@@ -73,7 +74,7 @@ class CampaignExecutor:
                 if cc_raw.lower() == "nan" or cc_raw.strip() == "":
                     cc_list = []
                 else:
-                    cc_list = [e.strip() for e in cc_raw.replace(";", ",").split(",") if e.strip()]    
+                    cc_list = [e.strip() for e in cc_raw.replace(";", ",").split(",") if e.strip()]
                 
                 file_path = file_matches.get(branch)
                 attachment_path = file_path if attach_file else None
@@ -91,9 +92,8 @@ class CampaignExecutor:
                 if file_path:
                     summary_df = ExcelReader.detect_active_range(file_path, self.sheet_name, self.start_cell)
                     summary_text = ExcelReader.dataframe_to_text(summary_df) if summary_df is not None else ""
-                    summary_html = ExcelReader.dataframe_to_html(summary_df) if summary_df is not None else ""
+                    summary_html = ExcelReader.dataframe_to_html(summary_df, self.header_color) if summary_df is not None else ""
                     
-                    # Extract cell data
                     user_template = self.config.get("body_template", "") + " " + self.config.get("subject", "")
                     cell_refs = re.findall(r'\{\{Cell:(.*?)\}\}', user_template)
                     for ref in cell_refs:
@@ -106,7 +106,6 @@ class CampaignExecutor:
                         cell_data[key] = val
                         cell_data[ref] = val
                 
-                # Build email body
                 user_body_template = self.config.get("body_template", "")
                 if user_body_template:
                     body_vars = variables.copy()
@@ -180,7 +179,13 @@ class CampaignExecutor:
         preview = self.config.get("preview_data", [])
         group_var = self.config.get("group_var", "BranchName")
         if preview:
-            return [{"branch_name": p[group_var], "to": p["To"], "cc": p.get("CC", "")} for p in preview]
+            result = []
+            for p in preview:
+                cc_val = p.get("CC", "")
+                if str(cc_val).lower() == "nan":
+                    cc_val = ""
+                result.append({"branch_name": p[group_var], "to": p["To"], "cc": cc_val})
+            return result
         
         mapping_id = self.config.get("mapping_id")
         if mapping_id:
@@ -191,7 +196,10 @@ class CampaignExecutor:
             for e in self.config["temp_mapping"]:
                 keys = [k for k in e.keys() if k.lower() not in ["to", "cc"]]
                 name_key = keys[0] if keys else "BranchName"
-                result.append({"branch_name": e[name_key], "to": e.get("To", ""), "cc": e.get("CC", "")})
+                cc_val = e.get("CC", "")
+                if str(cc_val).lower() == "nan":
+                    cc_val = ""
+                result.append({"branch_name": e[name_key], "to": e.get("To", ""), "cc": cc_val})
             return result
         return []
     

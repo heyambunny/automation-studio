@@ -38,13 +38,13 @@ class ExcelReader:
             return None
     
     @staticmethod
-    def dataframe_to_html(df: pd.DataFrame) -> str:
+    def dataframe_to_html(df: pd.DataFrame, header_color: str = "#FFD700") -> str:
         if df is None or df.empty:
             return "<p>No data available.</p>"
         
         html = '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">'
         
-        html += '<thead><tr style="background-color:#FFD700;color:#333;font-weight:bold;">'
+        html += f'<thead><tr style="background-color:{header_color};color:#333;font-weight:bold;">'
         for col in df.columns:
             html += f'<th style="padding:8px 12px;text-align:left;border:1px solid #ddd;">{col}</th>'
         html += '</tr></thead>'
@@ -53,7 +53,11 @@ class ExcelReader:
         for i, row in df.iterrows():
             bg = '#f9f9f9' if i % 2 == 0 else 'white'
             html += f'<tr style="background-color:{bg};">'
-            for val in row:
+            for col, val in row.items():
+                col_lower = str(col).lower()
+                if 'percentage' in col_lower or '%' in col_lower or 'pct' in col_lower or '%age' in col_lower:
+                    if pd.notna(val) and isinstance(val, (int, float)):
+                        val = f"{val * 100:.2f}%"
                 html += f'<td style="padding:8px 12px;border:1px solid #ddd;">{val}</td>'
             html += '</tr>'
         html += '</tbody></table>'
