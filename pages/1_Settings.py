@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import time
 from database import SessionLocal
 from models import Setting, SMTPProfile, User, UserRole
 from services.audit_service import log_action
@@ -23,16 +24,25 @@ role = st.session_state.get("user_role", "manager")
 
 existing_setting = db.query(Setting).filter_by(user_id=uid).first()
 
+# ── Success message after rerun ──
+if st.session_state.get("profile_saved"):
+    st.success(st.session_state["profile_saved"])
+    del st.session_state["profile_saved"]
+
+# ── Form counter for widget reset ──
+if "form_counter" not in st.session_state:
+    st.session_state.form_counter = 0
+
 # ── User Management (Admin Only) ──
 if role == "admin":
     st.subheader("👥 User Management")
     st.caption("Create, view, and remove users.")
     
     with st.expander("➕ Add New User"):
-        new_email = st.text_input("Email", key="new_user_email", placeholder="user@company.com")
-        new_password = st.text_input("Password", type="password", key="new_user_pass")
-        new_name = st.text_input("Full Name", key="new_user_name", placeholder="John Doe")
-        new_role = st.selectbox("Role", ["manager", "admin"], key="new_user_role")
+        new_email = st.text_input("Email", key=f"new_user_email_{st.session_state.form_counter}", placeholder="user@company.com")
+        new_password = st.text_input("Password", type="password", key=f"new_user_pass_{st.session_state.form_counter}")
+        new_name = st.text_input("Full Name", key=f"new_user_name_{st.session_state.form_counter}", placeholder="John Doe")
+        new_role = st.selectbox("Role", ["manager", "admin"], key=f"new_user_role_{st.session_state.form_counter}")
         
         if st.button("💾 Create User", key="create_user_btn"):
             if new_email and new_password and new_name:
@@ -50,18 +60,21 @@ if role == "admin":
                     db.add(new_user)
                     db.commit()
                     
-                    # Create settings for user
                     new_setting = Setting(user_id=new_user.id)
                     db.add(new_setting)
                     db.commit()
                     
                     log_action("user_created", "user", new_user.id, new_email)
-                    st.success(f"User '{new_email}' created!")
+                    st.session_state.form_counter += 1
+                    st.session_state.user_saved = f"User '{new_email}' created!"
                     st.rerun()
             else:
                 st.error("Please fill all fields.")
     
-    # List all users
+    if st.session_state.get("user_saved"):
+        st.success(st.session_state["user_saved"])
+        del st.session_state["user_saved"]
+    
     users = db.query(User).all()
     if users:
         user_data = []
@@ -76,7 +89,6 @@ if role == "admin":
             })
         st.dataframe(pd.DataFrame(user_data), use_container_width=True, hide_index=True)
         
-        # Remove user
         st.divider()
         selected_user = st.selectbox("Select user to remove", [u.email for u in users if u.id != uid])
         
@@ -96,6 +108,7 @@ if role == "admin":
                             db.commit()
                         st.session_state.confirm_remove_user = None
                         st.success(f"User '{selected_user}' removed.")
+                        time.sleep(1)
                         st.rerun()
                 with c2:
                     if st.button("❌ Cancel", key="confirm_remove_no"):
@@ -120,6 +133,7 @@ if uploaded_logo:
     with open(LOGO_PATH, "wb") as f:
         f.write(uploaded_logo.getbuffer())
     st.success("Logo updated!")
+    time.sleep(1)
     st.rerun()
 
 st.divider()
@@ -149,14 +163,14 @@ else:
     st.info("No SMTP profiles saved yet.")
 
 with st.expander("➕ Add New SMTP Profile"):
-    profile_name = st.text_input("Profile Name", key="new_name")
-    smtp_server = st.text_input("SMTP Server", key="new_server", placeholder="smtp.gmail.com")
-    smtp_port = st.number_input("Port", value=587, key="new_port")
-    sender_email = st.text_input("Sender Email", key="new_email")
-    sender_name = st.text_input("Sender Name", key="new_sname")
-    password = st.text_input("Password / App Password", type="password", key="new_pass")
-    use_tls = st.checkbox("Use TLS", value=True, key="new_tls")
-    is_default = st.checkbox("Set as default", key="new_default")
+    profile_name = st.text_input("Profile Name", key=f"new_name_{st.session_state.form_counter}")
+    smtp_server = st.text_input("SMTP Server", key=f"new_server_{st.session_state.form_counter}", placeholder="smtp.gmail.com")
+    smtp_port = st.number_input("Port", value=587, key=f"new_port_{st.session_state.form_counter}")
+    sender_email = st.text_input("Sender Email", key=f"new_email_{st.session_state.form_counter}")
+    sender_name = st.text_input("Sender Name", key=f"new_sname_{st.session_state.form_counter}")
+    password = st.text_input("Password / App Password", type="password", key=f"new_pass_{st.session_state.form_counter}")
+    use_tls = st.checkbox("Use TLS", value=True, key=f"new_tls_{st.session_state.form_counter}")
+    is_default = st.checkbox("Set as default", key=f"new_default_{st.session_state.form_counter}")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -194,7 +208,9 @@ with st.expander("➕ Add New SMTP Profile"):
                 db.add(new_profile)
                 db.commit()
                 log_action("smtp_profile_created", "smtp_profile", new_profile.id, profile_name)
-                st.success(f"Profile '{profile_name}' saved.")
+                
+                st.session_state.form_counter += 1
+                st.session_state.profile_saved = f"Profile '{profile_name}' saved!"
                 st.rerun()
             else:
                 st.error("Please fill all required fields.")
@@ -219,6 +235,7 @@ if profiles:
                         db.commit()
                     st.session_state.confirm_delete_profile = None
                     st.success(f"Profile '{selected_profile}' deleted.")
+                    time.sleep(1)
                     st.rerun()
             with c2:
                 if st.button("❌ Cancel", key="cancel_del"):
