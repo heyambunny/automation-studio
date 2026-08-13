@@ -454,7 +454,7 @@ elif st.session_state.campaign_step == 4:
                             </div>
                             <div style="font-size:13px;color:#6B7280;line-height:1.8;">
                                 <div><strong style="color:#374151;display:inline-block;width:60px;">To:</strong> {branch_data['To']}</div>
-                                {f'<div><strong style="color:#374151;display:inline-block;width:60px;">CC:</strong> {branch_data["CC"]}</div>' if branch_data.get('CC') and str(branch_data.get('CC')).lower() != 'nan' else ''}
+                                <div><strong style="color:#374151;display:inline-block;width:60px;">CC:</strong> {branch_data["CC"]}</div>
                                 <div><strong style="color:#374151;display:inline-block;width:60px;">Subject:</strong> {preview_subject}</div>
                             </div>
                         </div>
