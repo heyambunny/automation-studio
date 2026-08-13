@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import os
 from database import SessionLocal
-from models import Setting, SMTPProfile
+from models import Setting, SMTPProfile, User, UserRole
 from services.audit_service import log_action
 
 st.title("⚙️ Settings")
@@ -22,6 +22,87 @@ uid = st.session_state.get("user_id", 1)
 role = st.session_state.get("user_role", "manager")
 
 existing_setting = db.query(Setting).filter_by(user_id=uid).first()
+
+# ── User Management (Admin Only) ──
+if role == "admin":
+    st.subheader("👥 User Management")
+    st.caption("Create, view, and remove users.")
+    
+    with st.expander("➕ Add New User"):
+        new_email = st.text_input("Email", key="new_user_email", placeholder="user@company.com")
+        new_password = st.text_input("Password", type="password", key="new_user_pass")
+        new_name = st.text_input("Full Name", key="new_user_name", placeholder="John Doe")
+        new_role = st.selectbox("Role", ["manager", "admin"], key="new_user_role")
+        
+        if st.button("💾 Create User", key="create_user_btn"):
+            if new_email and new_password and new_name:
+                existing_user = db.query(User).filter_by(email=new_email).first()
+                if existing_user:
+                    st.error("User with this email already exists.")
+                else:
+                    user_role = UserRole.ADMIN if new_role == "admin" else UserRole.MANAGER
+                    new_user = User(
+                        email=new_email,
+                        password_hash=User.hash_password(new_password),
+                        full_name=new_name,
+                        role=user_role
+                    )
+                    db.add(new_user)
+                    db.commit()
+                    
+                    # Create settings for user
+                    new_setting = Setting(user_id=new_user.id)
+                    db.add(new_setting)
+                    db.commit()
+                    
+                    log_action("user_created", "user", new_user.id, new_email)
+                    st.success(f"User '{new_email}' created!")
+                    st.rerun()
+            else:
+                st.error("Please fill all fields.")
+    
+    # List all users
+    users = db.query(User).all()
+    if users:
+        user_data = []
+        for u in users:
+            user_data.append({
+                "ID": u.id,
+                "Name": u.full_name,
+                "Email": u.email,
+                "Role": u.role.value if u.role else "N/A",
+                "Active": u.is_active or "Y",
+                "Created": u.created_at.strftime("%Y-%m-%d") if u.created_at else ""
+            })
+        st.dataframe(pd.DataFrame(user_data), use_container_width=True, hide_index=True)
+        
+        # Remove user
+        st.divider()
+        selected_user = st.selectbox("Select user to remove", [u.email for u in users if u.id != uid])
+        
+        if selected_user:
+            if st.button("🗑️ Remove User", type="secondary", key="remove_user_btn"):
+                st.session_state.confirm_remove_user = selected_user
+            
+            if st.session_state.get("confirm_remove_user") == selected_user:
+                st.error(f"⚠️ Remove user '{selected_user}'? This will delete their data too.")
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("✅ Yes, Remove", key="confirm_remove_yes"):
+                        user_to_remove = db.query(User).filter_by(email=selected_user).first()
+                        if user_to_remove:
+                            log_action("user_removed", "user", user_to_remove.id, selected_user)
+                            db.delete(user_to_remove)
+                            db.commit()
+                        st.session_state.confirm_remove_user = None
+                        st.success(f"User '{selected_user}' removed.")
+                        st.rerun()
+                with c2:
+                    if st.button("❌ Cancel", key="confirm_remove_no"):
+                        st.session_state.confirm_remove_user = None
+                        st.rerun()
+    
+    st.divider()
 
 # ── Logo ──
 st.subheader("🖼️ App Logo")
