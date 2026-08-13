@@ -49,6 +49,8 @@ with tab1:
     
     mapping_name = st.text_input("Mapping Name", placeholder="e.g. Branch Mapping Q1 2026")
     uploaded_file = st.file_uploader("Choose CSV file", type=["csv"])
+    if uploaded_file and not mapping_name:
+        st.warning("Please enter a mapping name before uploading the file.")
     
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
@@ -58,6 +60,9 @@ with tab1:
         required_cols = ["BranchName", "To", "CC"]
         if all(col in df.columns for col in required_cols):
             if st.button("💾 Save Mapping", type="primary"):
+                if not mapping_name or mapping_name.strip() == "":
+                    st.error("Please enter a mapping name before saving.")
+                    st.stop()
                 file_path = os.path.join(UPLOAD_DIR, f"{mapping_name}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv")
                 df.to_csv(file_path, index=False)
                 
@@ -111,7 +116,10 @@ with tab2:
         selected_mapping = st.selectbox("Select mapping to view or delete", [m.mapping_name for m in mappings])
         
         if selected_mapping:
-            mapping = db.query(Mapping).filter_by(mapping_name=selected_mapping, user_id=uid if role != "admin" else None).first()
+            if role == "admin":
+                mapping = db.query(Mapping).filter_by(mapping_name=selected_mapping).first()
+            else:
+                mapping = db.query(Mapping).filter_by(user_id=uid, mapping_name=selected_mapping).first()       
             if mapping:
                 entries = db.query(MappingEntry).filter_by(mapping_id=mapping.id).all()
                 
