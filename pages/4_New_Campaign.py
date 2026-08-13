@@ -5,9 +5,11 @@ import os
 from datetime import datetime
 import json
 import uuid
+import re
 from database import SessionLocal
 from models import Setting, SMTPProfile, Mapping, MappingEntry, Template, Execution, EmailLog, Schedule
 from services.audit_service import log_action
+from services.excel_reader import ExcelReader
 
 st.title("🚀 New Campaign")
 
@@ -84,7 +86,6 @@ elif st.session_state.campaign_step == 2:
             st.dataframe(df, use_container_width=True)
             st.session_state.campaign_config["temp_mapping"] = df.to_dict("records")
     
-    # Next/Back buttons moved here
     col1, col2 = st.columns(2)
     with col1:
         if st.button("← Back"):
@@ -164,7 +165,6 @@ elif st.session_state.campaign_step == 3:
     st.session_state.campaign_config["group_var_placeholder"] = group_var_placeholder
     st.session_state.campaign_config["mode"] = "static/static"
     
-    # Subject
     st.write("**Subject Line**")
     st.caption("📌 Available variables (click to copy):")
     subj_cols = st.columns(4)
@@ -216,12 +216,35 @@ elif st.session_state.campaign_step == 3:
     attach = st.checkbox("📎 Attach Excel file to email", value=True)
     st.session_state.campaign_config["attach_file"] = attach
     
+    # ── Sheet Settings with dropdown ──
     st.subheader("📊 Sheet Settings")
+    
+    campaign_folder = st.session_state.campaign_config.get("campaign_folder", "")
+    sheet_names = []
+    
+    if campaign_folder and os.path.exists(campaign_folder):
+        excel_files = [f for f in os.listdir(campaign_folder) if f.endswith(('.xlsx', '.xlsm'))]
+        if excel_files:
+            first_file = os.path.join(campaign_folder, excel_files[0])
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(first_file, read_only=True)
+                sheet_names = wb.sheetnames
+                wb.close()
+            except:
+                sheet_names = []
+    
     col1, col2 = st.columns(2)
     with col1:
-        sheet_name = st.text_input("Summary Sheet Name", value=default_sheet)
+        if sheet_names:
+            default_sheet_index = sheet_names.index(default_sheet) if default_sheet in sheet_names else 0
+            sheet_name = st.selectbox("Summary Sheet", sheet_names, index=default_sheet_index)
+            st.caption(f"📄 Detected from: {excel_files[0]}")
+        else:
+            sheet_name = st.text_input("Summary Sheet Name", value=default_sheet)
     with col2:
         start_cell = st.text_input("Starting Cell", value=default_cell)
+    
     st.session_state.campaign_config["sheet_name"] = sheet_name
     st.session_state.campaign_config["start_cell"] = start_cell
     
@@ -263,10 +286,13 @@ elif st.session_state.campaign_step == 4:
                 branch_name = e.branch_name if hasattr(e, 'branch_name') else e.get(group_var, e.get("BranchName", ""))
                 file_exists = os.path.exists(os.path.join(campaign_folder, f"{branch_name}.xlsx")) or \
                              os.path.exists(os.path.join(campaign_folder, f"{branch_name}.csv"))
+                cc_value = e.cc_recipients if hasattr(e, 'cc_recipients') else e.get("CC", "")
+                if not cc_value or str(cc_value).lower() == "nan" or pd.isna(cc_value):
+                    cc_value = ""
                 preview_data.append({
                     group_var: branch_name,
                     "To": e.to_recipients if hasattr(e, 'to_recipients') else e.get("To"),
-                    "CC": e.cc_recipients if hasattr(e, 'cc_recipients') else e.get("CC", ""),
+                    "CC": cc_value,
                     "File": "✅" if file_exists else "❌",
                     "Status": "Ready" if file_exists else "Missing"
                 })
@@ -274,6 +300,77 @@ elif st.session_state.campaign_step == 4:
             st.session_state.campaign_config["preview_data"] = preview_data
             st.caption(f"📧 {len(preview_data)} branches found")
             st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
+            
+            st.divider()
+            st.subheader("👁️ Email Preview")
+            
+            ready_branches = [d[group_var] for d in preview_data if d["Status"] == "Ready"]
+            if ready_branches:
+                selected_preview = st.selectbox("Select branch to preview email", ready_branches)
+                
+                if selected_preview:
+                    branch_data = next(d for d in preview_data if d[group_var] == selected_preview)
+                    variables = st.session_state.campaign_config.get("variables", {})
+                    report_type = variables.get("ReportType", "Performance Report")
+                    sender_name = st.session_state.campaign_config.get("sender_name", "Automation Studio")
+                    subject_template = st.session_state.campaign_config.get("subject", "")
+                    body_template = st.session_state.campaign_config.get("body_template", "")
+                    sheet_name = st.session_state.campaign_config.get("sheet_name", "Summary")
+                    start_cell = st.session_state.campaign_config.get("start_cell", "B5")
+                    
+                    file_path = os.path.join(campaign_folder, f"{selected_preview}.xlsx")
+                    if not os.path.exists(file_path):
+                        file_path = os.path.join(campaign_folder, f"{selected_preview}.csv")
+                    
+                    summary_html = ""
+                    cell_data = {}
+                    if os.path.exists(file_path):
+                        summary_df = ExcelReader.detect_active_range(file_path, sheet_name, start_cell)
+                        summary_html = ExcelReader.dataframe_to_html(summary_df) if summary_df is not None else "<p>No summary data found.</p>"
+                        
+                        user_template = body_template + " " + subject_template
+                        cell_refs = re.findall(r'\{\{Cell:(.*?)\}\}', user_template)
+                        for ref in cell_refs:
+                            if '!' in ref:
+                                s, c = ref.split('!')
+                            else:
+                                s, c = sheet_name, ref
+                            val = ExcelReader.get_cell_value(file_path, s, c)
+                            cell_data[f"{s}!{c}"] = val
+                            cell_data[ref] = val
+                    
+                    preview_subject = subject_template.replace(group_var_placeholder, selected_preview)
+                    preview_subject = preview_subject.replace("{{ReportType}}", report_type)
+                    for ref, val in cell_data.items():
+                        preview_subject = preview_subject.replace(f"{{{{Cell:{ref}}}}}", str(val))
+                    
+                    preview_body = body_template.replace(group_var_placeholder, selected_preview)
+                    preview_body = preview_body.replace("{{ReportType}}", report_type)
+                    preview_body = preview_body.replace("{{Summary}}", summary_html)
+                    preview_body = preview_body.replace("{{SenderName}}", sender_name)
+                    for ref, val in cell_data.items():
+                        preview_body = preview_body.replace(f"{{{{Cell:{ref}}}}}", str(val))
+                    preview_body = preview_body.replace("\n", "<br>")
+                    
+                    st.markdown(f"""
+                    <div style="max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;font-family:'Inter',sans-serif;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                        <div style="background:#f9fafb;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+                            <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Email Preview</div>
+                            <div style="font-size:13px;margin-bottom:4px;"><strong>From:</strong> {sender_name}</div>
+                            <div style="font-size:13px;margin-bottom:4px;"><strong>To:</strong> {branch_data['To']}</div>
+                            {f'<div style="font-size:13px;margin-bottom:4px;"><strong>CC:</strong> {branch_data["CC"]}</div>' if branch_data.get('CC') and str(branch_data.get('CC')).lower() != 'nan' else ''}
+                            <div style="font-size:13px;"><strong>Subject:</strong> {preview_subject}</div>
+                        </div>
+                        <div style="padding:24px 20px;font-size:14px;color:#1f2937;line-height:1.6;">
+                            {preview_body}
+                        </div>
+                        <div style="background:#f9fafb;padding:12px 20px;border-top:1px solid #e5e7eb;text-align:center;">
+                            <span style="font-size:11px;color:#9ca3af;">📎 {os.path.basename(file_path) if os.path.exists(file_path) else 'No attachment'}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.warning("No branches with files ready for preview.")
     
     col1, col2 = st.columns(2)
     with col1:

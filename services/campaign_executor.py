@@ -69,7 +69,11 @@ class CampaignExecutor:
             for entry in entries:
                 branch = entry["branch_name"]
                 to_list = [e.strip() for e in entry["to"].replace(";", ",").split(",") if e.strip()]
-                cc_list = [e.strip() for e in entry["cc"].replace(";", ",").split(",") if e.strip()] if entry.get("cc") else []
+                cc_raw = str(entry.get("cc", ""))
+                if cc_raw.lower() == "nan" or cc_raw.strip() == "":
+                    cc_list = []
+                else:
+                    cc_list = [e.strip() for e in cc_raw.replace(";", ",").split(",") if e.strip()]    
                 
                 file_path = file_matches.get(branch)
                 attachment_path = file_path if attach_file else None
